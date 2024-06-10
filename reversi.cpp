@@ -27,8 +27,9 @@ int gr_direction[8][2] = {	//方向
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	ChangeWindowMode(TRUE);	//ウィンドウモード
+	SetMainWindowText("リバーシ");
 	SetGraphMode(480, 530, 32);
-	SetBackgroundColor(36, 36, 36);
+	SetBackgroundColor(28, 24, 20);
 
 	if (DxLib_Init() == -1)		// ＤＸライブラリ初期化処理
 	{
@@ -141,7 +142,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 }
 
 
-//盤面の初期化 引数int* board…盤面配列の起点[0][0]のアドレス
+//盤面の描画
 void drawBoard(int board[][8], int turn, char* name, unsigned int colors[]) {
 	int i;	//ループカウンタ
 	int j;	//ループカウンタ
@@ -164,7 +165,8 @@ void drawBoard(int board[][8], int turn, char* name, unsigned int colors[]) {
 	}
 
 	//現在のターンを表示
-	SetStone(0, 8, colors[turn]);
+	DrawCircleAA(47.5, 487.5, 26, 80, GetColor(128, 128, 128), TRUE);	//背景が黒に近いので、黒石が見やすいように後ろをつける
+	SetStone(0, 8, colors[turn]);	//現在の石の色を表示
 	DrawFormatString(100, 480, GetColor(255, 255, 255),"%sのターン", name);
 
 	/*
