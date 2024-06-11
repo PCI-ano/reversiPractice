@@ -1,39 +1,38 @@
 #include "DxLib.h"
 
-//
+//マクロ
 #define PLAYER_NUM 2	//プレイヤーの人数 *2人用に開発しているため、人数変更は不可です。
 #define Y_BOARD 8	//縦のマス目の数
 #define X_BOARD 8	//横のマス目の数
 #define STATUS_NOSTONE -1	//盤面に石が置かれていないときの値
-#define ROW_NOSTONE {STATUS_NOSTONE, STATUS_NOSTONE, STATUS_NOSTONE, STATUS_NOSTONE, STATUS_NOSTONE, STATUS_NOSTONE, STATUS_NOSTONE, STATUS_NOSTONE}
-#define BOARD_NOSTONE ROW_NOSTONE,ROW_NOSTONE,ROW_NOSTONE,ROW_NOSTONE,ROW_NOSTONE,ROW_NOSTONE,ROW_NOSTONE,ROW_NOSTONE
 #define EOP -1		//パターン終端
 
 //構造体
-typedef struct boardData {
+typedef struct boardData {	//盤面の情報
 	int status[Y_BOARD][X_BOARD];			//石の配置状態
-	int allocPosition[Y_BOARD][X_BOARD];	//石の配置可能場所
+	int allocPosition[Y_BOARD][X_BOARD];	//石の配置可能場所（今後利用予定）
 	int stoneNum = 0;
 }Board;
 
-typedef struct {
+typedef struct {	//プレイヤー情報
 	char name[100];
 	unsigned int color;
 	int stoneNum;
 }Player;
 
-typedef struct {
+typedef struct gameData{	//ゲーム進行関連
 	int playerNum;	//プレイヤーの人数
 	int turn;		//どのプレイヤーのターンであるか
+	int isSkipped = 0;	//スキップしたかどうか
 }Game;
 
 //プロトタイプ宣言
 Board initBoard(void);
-void drawBoard(int board[][8], int turn, char* name, unsigned int colors[]);
+void drawBoard(int board[Y_BOARD][X_BOARD], int turn, Player* players);
 void clearArray(int* array, int y, int x, int value);
 void SetStone(int x, int y, unsigned int color);
-int checkBoard(int board[][8], int* allocablePosition[][8], int turn, unsigned int pointColor);
-void turnStone(int posX, int posY, int board[][8], int* allocablePosition[][8]);
+int checkBoard(int board[Y_BOARD][X_BOARD], int* allocablePosition[Y_BOARD][X_BOARD], int turn, unsigned int pointColor);
+void turnStone(int posX, int posY, int board[Y_BOARD][X_BOARD], int* allocablePosition[Y_BOARD][X_BOARD]);
 int GetClickArea(int* posX, int* posY);
 void changeTurn(int* turn);
 void showMessage(const char* message);
@@ -61,69 +60,50 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	if (DxLib_Init() == -1)		// ＤＸライブラリ初期化処理
 	{
-		return -1;			// エラーが起きたら直ちに終了
+		return -1;				// エラーが起きたら直ちに終了
 	}
 
-	//新変数
-	Board board = initBoard();
-	Player player[2] = {
+	
+	//各種変数
+	Board board = initBoard();		//盤面に関する値
+	Player players[2] = {			//プレイヤーに関する値
 		{"黒", GetColor(0,0,0)},
 		{"白", GetColor(255,255,255)}
 	};
+	Game game = { PLAYER_NUM, 0, 0 };	//ゲーム進行に関する値
 
-	//各種変数
 	int i;		//ループカウンタ
 	int j;		//ループカウンタ
-	int turn = 0;		//手番（0が先攻[黒]、1が後攻[白]）
-	int stoneNum = 4;	//石の数
-	int skip = 0;		//スキップされたかどうか *2回連続スキップされた場合終了
-	/*int board[8][8] = {	//リバーシボード（0未配置,1黒,2白）
-		{0,0,0,0,0,0,0,0},
-		{0,0,0,0,0,0,0,0},
-		{0,0,0,0,0,0,0,0},
-		{0,0,0,2,1,0,0,0},
-		{0,0,0,1,2,0,0,0},
-		{0,0,0,0,0,0,0,0},
-		{0,0,0,0,0,0,0,0},
-		{0,0,0,0,0,0,0,0}
-	};*/
+	
 	int* allocablePosition[8][8];	//石の配置可能場所
 	for (i = 0; i < 64; i++) {		//配置可能場所の各要素に空ポインタを入れる
 		allocablePosition[i / 8][i % 8] = NULL;
 	}
 	
-	/*
-	int playerStoneNum[3] = { -1,0,0 };	//プレイヤーごとの石の数
-
-	//色（盤面、黒の石、白の石）、プレイヤー名
-	char playerName[3][40] = { "","黒","白"};
-	*/
-	char resultStr[40];
-	unsigned int gameColor[3] = { GetColor(0,0,0),GetColor(255,255,255) };	//変更予定
-
-	//盤面の初期配置を描画
-	drawBoard(board.status, turn, player[turn].name, gameColor);
+	char resultStr[40];	//連結した文字列を格納するバッファ
 	
 	//ゲーム進行
 	while (1) {	//ゲーム進行ループ
+		drawBoard(board.status, game.turn, players);	//画面の描画
+
 		//石の配置可能な位置を判定・表示
-		if (checkBoard(board.status, allocablePosition, turn, gameColor[turn]) == -1) {
+		if (checkBoard(board.status, allocablePosition, game.turn, players[game.turn].color) == -1) {
 			//石を置ける場所がなかった場合
-			if (skip == 1) {	//スキップが連続2回目の場合
+			if (game.isSkipped == 1) {	//スキップが連続2回目の場合
 				showMessage("これ以上置けません");
-				drawBoard(board.status, turn, player[turn].name, gameColor);
+				drawBoard(board.status, game.turn, players);
 				break;
 			}
 			else {
-				skip = 1;
+				game.isSkipped = 1;
 				showMessage("置ける場所がないため、パスします");
-				drawBoard(board.status, turn, player[turn].name, gameColor);
-				changeTurn(&turn);
-				drawBoard(board.status, turn, player[turn].name, gameColor);
+				drawBoard(board.status, game.turn, players);
+				changeTurn(&game.turn);
+				drawBoard(board.status, game.turn, players);
 				continue;
 			}
 		}
-		skip = 0;
+		game.isSkipped = 0;
 
 		while (1) {	//石配置判定ループ
 			//石が配置、またはスキップされるまで繰り返します
@@ -135,42 +115,41 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 
 			if (allocablePosition[clickPosY][clickPosX] != NULL) {	//クリックした場所が配置可能な場合
-				board.status[clickPosY][clickPosX] = turn;
+				board.status[clickPosY][clickPosX] = game.turn;
 				turnStone(clickPosX, clickPosY, board.status, allocablePosition);
-				stoneNum++;
+				board.stoneNum++;
 				break;
 			}
 
 		}
-		if (stoneNum == 64) {	//盤面のすべての場所に石が配置された場合
-			drawBoard(board.status, turn, player[turn].name, gameColor);
+		if (board.stoneNum == 64) {	//盤面のすべての場所に石が配置された場合
+			drawBoard(board.status, game.turn, players);
 			break;
 		}
 
 		//ターンチェンジ
-		changeTurn(&turn);
-		drawBoard(board.status, turn, player[turn].name, gameColor);
+		changeTurn(&game.turn);
 	}
 	
 	//石を数える
 	//結果と勝敗を表示する
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			player[board.status[j][i]].stoneNum++;
+			players[board.status[j][i]].stoneNum++;
 		}
 	}
 
 	//この文は2人プレイ用に簡略化しています
-	if (player[0].stoneNum > player[1].stoneNum) {
-		sprintf_s(resultStr,40, "%2d対%-2d  %sの勝ち", player[0].stoneNum, player[1].stoneNum, player[0].name);
+	if (players[0].stoneNum > players[1].stoneNum) {
+		sprintf_s(resultStr,40, "%2d対%-2d  %sの勝ち", players[0].stoneNum, players[1].stoneNum, players[0].name);
 		showMessage(resultStr);
 	}
-	else if (player[1].stoneNum > player[0].stoneNum) {
-		sprintf_s(resultStr, 40, "%2d対%-2d  %sの勝ち", player[0].stoneNum, player[1].stoneNum, player[1].name);
+	else if (players[1].stoneNum > players[0].stoneNum) {
+		sprintf_s(resultStr, 40, "%2d対%-2d  %sの勝ち", players[0].stoneNum, players[1].stoneNum, players[1].name);
 		showMessage(resultStr);
 	}
 	else {
-		sprintf_s(resultStr, 40, "%2d対%-2d  引き分けです", player[0].stoneNum, player[1].stoneNum);
+		sprintf_s(resultStr, 40, "%2d対%-2d  引き分けです", players[0].stoneNum, players[1].stoneNum);
 		showMessage(resultStr);
 	}
 
@@ -180,7 +159,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 }
 
 Board initBoard(void) {
-	Board board; // = { {BOARD_NOSTONE},{BOARD_NOSTONE},0 };
+	Board board;
 	
 	//盤面を初期化
 	clearArray(&board.status[0][0], Y_BOARD, X_BOARD, STATUS_NOSTONE);
@@ -191,6 +170,7 @@ Board initBoard(void) {
 	board.status[3][4] = 0;
 	board.status[4][3] = 0;
 	board.status[4][4] = 1;
+	board.stoneNum = 4;
 
 	return board;
 }
@@ -209,7 +189,7 @@ void clearArray(int* array, int y, int x, int value) {
 }
 
 //盤面の描画
-void drawBoard(int board[][8], int turn, char* name, unsigned int colors[]) {
+void drawBoard(int board[Y_BOARD][X_BOARD], int turn, Player* players) {
 	int i;	//ループカウンタ
 	int j;	//ループカウンタ
 	int n;	//配置座標
@@ -225,15 +205,15 @@ void drawBoard(int board[][8], int turn, char* name, unsigned int colors[]) {
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
 			if (board[i][j] != STATUS_NOSTONE) {	//石がある場所の場合
-				SetStone(j, i, colors[board[i][j]]);
+				SetStone(j, i, players[board[i][j]].color);
 			}
 		}
 	}
 
 	//現在のターンを表示
 	DrawCircleAA(47.5, 487.5, 26, 80, GetColor(128, 128, 128), TRUE);	//背景が黒に近いので、黒石が見やすいように後ろをつける
-	SetStone(0, 8, colors[turn]);	//現在の石の色を表示
-	DrawFormatString(100, 480, GetColor(255, 255, 255),"%sのターン", name);
+	SetStone(0, 8, players[turn].color);	//現在の石の色を表示
+	DrawFormatString(100, 480, GetColor(255, 255, 255),"%sのターン", players[turn].name);
 
 	/*
 	//石の初期配置
@@ -250,7 +230,7 @@ void SetStone(int x, int y, unsigned int color) {
 }
 
 //石の配置可能な位置を判定・表示
-int checkBoard(int board[][8], int* allocablePosition[][8], int turn, unsigned int pointColor) {
+int checkBoard(int board[Y_BOARD][X_BOARD], int* allocablePosition[Y_BOARD][X_BOARD], int turn, unsigned int pointColor) {
 	
 	int success = 0;	//配置可能な位置を発見できたかどうか
 	int xPos;	//xループカウンタ
@@ -329,7 +309,7 @@ int checkBoard(int board[][8], int* allocablePosition[][8], int turn, unsigned i
 	}
 }
 
-void turnStone(int posX, int posY, int board[][8], int* allocablePosition[][8]) {
+void turnStone(int posX, int posY, int board[Y_BOARD][X_BOARD], int* allocablePosition[Y_BOARD][X_BOARD]) {
 	int i = 0;	//ループカウンタ
 	int turnX;
 	int turnY;
