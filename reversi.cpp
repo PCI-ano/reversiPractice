@@ -266,13 +266,14 @@ int checkBoard(int board[Y_BOARD][X_BOARD], int* allocablePosition[Y_BOARD][X_BO
 
 				while (1) {	//配置可能条件を満たさなくなるまで繰り返す
 
-					if (xChk < 0 || xChk > 7 || yChk < 0 || yChk > 7) {	//盤面の端に到達している場合
-						break;
-					}
-
 					//確認位置を1マス進める
 					xChk += gr_direction[i][0];
 					yChk += gr_direction[i][1];
+
+					if (xChk < 0 || xChk > 7 || yChk < 0 || yChk > 7) {	//盤面の端に到達している場合
+						result = 0;
+						break;
+					}
 
 					if (board[yChk][xChk] != turn && board[yChk][xChk] != STATUS_NOSTONE) {
 						//*手番と異なる色の石が隣接・連続している
